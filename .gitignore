@@ -43,3 +43,5 @@ api/best_model_lama.pkl
 api/best_model_super_lama.pkl
 api/feature_columns_lama.pkl
 api/feature_columns_super_lama.pkl
+api/rf_model.pkl
+api/xgb_model.pkl
