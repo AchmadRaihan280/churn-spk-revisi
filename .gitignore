@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+api/best_model_lama.pkl
+api/best_model_super_lama.pkl
+api/feature_columns_lama.pkl
+api/feature_columns_super_lama.pkl
