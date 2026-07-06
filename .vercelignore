@@ -1,0 +1,15 @@
+# Abaikan folder cache Python
+**/__pycache__
+*.pyc
+
+# Abaikan model-model cadangan/lama agar menghemat ratusan MB!
+api/best_model_lama.pkl
+api/best_model_super_lama.pkl
+api/feature_columns_lama.pkl
+api/feature_columns_super_lama.pkl
+
+# Abaikan folder dokumentasi & git
+.git
+README.md
+.next
+node_modules
