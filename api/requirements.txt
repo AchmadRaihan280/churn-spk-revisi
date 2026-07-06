@@ -1,7 +1,3 @@
---index-url https://pypi.org/simple
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# Gunakan library versi basic tanpa tambahan bloatware
 numpy==1.26.4
 pandas==2.2.2
 scikit-learn==1.4.2
