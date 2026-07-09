@@ -25,22 +25,15 @@ import {
 const getCleanRecommendations = (item: any): string[] => {
   if (!item || !item.recommendation) return [];
 
-  // Jika formatnya langsung array: ["rec1", "rec2"]
   if (Array.isArray(item.recommendation)) {
     return item.recommendation;
   }
-
-  // Jika formatnya object berkunci 'recommendations': { recommendations: ["rec1", "rec2"] }
   if (Array.isArray(item.recommendation?.recommendations)) {
     return item.recommendation.recommendations;
   }
-
-  // Jika formatnya object berkunci 'recommendation': { recommendation: ["rec1", "rec2"] }
   if (Array.isArray(item.recommendation?.recommendation)) {
     return item.recommendation.recommendation;
   }
-
-  // Jika formatnya string tunggal: "Lakukan edukasi produk"
   if (typeof item.recommendation === "string") {
     return [item.recommendation];
   }
@@ -59,25 +52,29 @@ export default function UploadDatasetPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // 1. FUNGSI UPLOAD: MURNI menembak Flask API dan menampilkan hasil ke tabel sementara
+  // 1. FUNGSI UPLOAD
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const baseUrl =
-      process.env.NODE_ENV === "development" ? "http://127.0.0.1:5000" : "";
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
     setFileName(file.name);
     const formData = new FormData();
     formData.append("file", file);
 
     setLoading(true);
-    setIsSaved(false);
-    setResult(null); // Reset hasil lama agar tidak konflik
+    setIsSaved(false); // Reset status simpan
+    setResult(null); // Reset hasil lama
+    setSearchTerm(""); // Reset pencarian lama
+    setCurrentPage(1); // Reset halaman ke 1
 
     try {
       const res = await fetch(`${baseUrl}/api/predict-bulk`, {
         method: "POST",
+        headers: {
+          "ngrok-skip-browser-warning": "69420",
+        },
         body: formData,
       });
 
@@ -91,20 +88,15 @@ export default function UploadDatasetPage() {
     } catch (err) {
       console.error(err);
       alert(
-        "Gagal memproses upload dataset. Pastikan Flask API Anda menyala di port 5000.",
+        "Gagal memproses upload dataset. Pastikan Flask API dan Ngrok Anda menyala.",
       );
+      setFileName(""); // Kosongkan nama file jika gagal
     } finally {
-      loading_delay();
+      setLoading(false);
     }
   };
 
-  const loading_delay = () => {
-    setTimeout(() => {
-      setLoading(false);
-    }, 300);
-  };
-
-  // 2. FUNGSI SIMPAN KE DATABASE (Menggunakan getCleanRecommendations)
+  // 2. FUNGSI SIMPAN KE DATABASE (Aman dengan Chunk Berukuran Maksimal 400 Dokumen)
   const handleSaveToDatabase = async () => {
     const predictionsArray = result?.predictions || [];
     if (predictionsArray.length === 0) {
@@ -113,52 +105,69 @@ export default function UploadDatasetPage() {
     }
 
     if (predictionsArray.length > 500) {
-      alert(
-        "Sistem dibatasi untuk menyimpan maksimal 500 dokumen sekaligus dalam satu batch.",
-      );
+      alert("Sistem dibatasi untuk menyimpan maksimal 500 dokumen sekaligus.");
       return;
     }
 
     setSaving(true);
     try {
-      const batch = writeBatch(db);
       const predictionsRef = collection(db, "predictions");
       const timeNow = Date.now().toString().slice(-4);
 
-      predictionsArray.forEach((item: any, i: number) => {
-        const newDocRef = doc(predictionsRef);
-        const currentID =
-          item.customerID || item.CustomerID || `CUST-UNKNOWN-${timeNow}-${i}`;
-        const finalPrediction =
-          item.prediction !== undefined && item.prediction !== null
-            ? item.prediction
-            : item.risk?.toLowerCase() === "high"
-              ? 1
-              : 0;
+      // Membagi array menjadi beberapa kelompok kecil (chunks) maks 400 item untuk keamanan Firestore Batch
+      const chunkSize = 400;
+      for (let i = 0; i < predictionsArray.length; i += chunkSize) {
+        const chunk = predictionsArray.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
 
-        // Memanfaatkan fungsi pembantu agar array tersimpan dengan bersih di Firestore
-        const finalRecs = getCleanRecommendations(item);
+        chunk.forEach((item: any, index: number) => {
+          const globalIndex = i + index;
+          const newDocRef = doc(predictionsRef);
 
-        batch.set(newDocRef, {
-          customerID: currentID,
-          source: "Upload File",
-          createdAt: serverTimestamp(),
-          contract: item.contract || "Month-to-month",
-          dependents: item.dependents || "No",
-          internetService: item.internetService || "Fiber optic",
-          paperlessBilling: item.paperlessBilling || "Yes",
-          paymentMethod: item.paymentMethod || "Electronic check",
-          phoneService: item.phoneService || "Yes",
-          tenure: Number(item.tenure) || 0,
-          monthlyCharges: Number(item.monthlyCharges) || 0,
-          final_probability: Number(item.final_probability) || 0,
-          prediction: finalPrediction,
-          risk: item.risk ? item.risk.toLowerCase() : "low",
-          recommendation: finalRecs,
+          // Pencarian properti fleksibel (antisipasi huruf besar/kecil dari file Excel/CSV)
+          const currentID =
+            item.customerID ||
+            item.CustomerID ||
+            item.Customer_ID ||
+            `CUST-UNKNOWN-${timeNow}-${globalIndex}`;
+
+          const finalPrediction =
+            item.prediction !== undefined && item.prediction !== null
+              ? item.prediction
+              : item.risk?.toLowerCase() === "high"
+                ? 1
+                : 0;
+
+          const finalRecs = getCleanRecommendations(item);
+
+          batch.set(newDocRef, {
+            customerID: currentID,
+            source: "Upload File",
+            createdAt: serverTimestamp(),
+            contract: item.contract || item.Contract || "Month-to-month",
+            dependents: item.dependents || item.Dependents || "No",
+            internetService:
+              item.internetService || item.InternetService || "Fiber optic",
+            paperlessBilling:
+              item.paperlessBilling || item.PaperlessBilling || "Yes",
+            paymentMethod:
+              item.paymentMethod || item.PaymentMethod || "Electronic check",
+            phoneService: item.phoneService || item.PhoneService || "Yes",
+            tenure: Number(item.tenure ?? item.Tenure) || 0,
+            monthlyCharges:
+              Number(item.monthlyCharges ?? item.MonthlyCharges) || 0,
+            final_probability:
+              Number(item.final_probability ?? item.Probability) || 0,
+            prediction: finalPrediction,
+            risk: item.risk ? item.risk.toLowerCase() : "low",
+            recommendation: finalRecs,
+          });
         });
-      });
 
-      await batch.commit();
+        // Eksekusi commit per kelompok chunk
+        await batch.commit();
+      }
+
       setIsSaved(true);
       alert(
         `Berhasil! ${predictionsArray.length} data aman tersimpan ke database.`,
@@ -187,7 +196,7 @@ export default function UploadDatasetPage() {
     return matchesSearch && matchesRisk;
   });
 
-  // 4. LOGIK PEMOTONGAN HALAMAN (PAGINATION)
+  // 4. LOGIK PAGINATION
   const totalPages = Math.ceil(filteredPredictions.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -482,7 +491,6 @@ export default function UploadDatasetPage() {
                                 {currentRisk}
                               </span>
                             </td>
-                            {/* PERBAIKAN: MENAMPILKAN DATA REKOMENDASI YANG DIURAI AMAN */}
                             <td className="py-4 px-6 max-w-md">
                               {(() => {
                                 const recs = getCleanRecommendations(item);

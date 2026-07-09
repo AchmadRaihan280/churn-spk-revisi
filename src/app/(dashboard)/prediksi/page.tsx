@@ -78,15 +78,16 @@ export default function PrediksiPage() {
 
     setLoading(true);
 
-    const baseUrl = process.env.NODE_ENV === 'development' 
-      ? 'http://127.0.0.1:5000' 
-      : '';
+    // UBAH DI SINI: Gunakan environment variable untuk URL API dinamis (Vercel/Ngrok)
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
     try {
       const res = await fetch(`${baseUrl}/api/predict`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          // UBAH DI SINI: Tambahkan header Ngrok untuk mem-bypass halaman peringatan
+          "ngrok-skip-browser-warning": "69420",
         },
         body: JSON.stringify({
           gender,
@@ -153,7 +154,9 @@ export default function PrediksiPage() {
       });
     } catch (err) {
       console.log(err);
-      alert("Gagal terhubung ke backend");
+      alert(
+        "Gagal terhubung ke backend. Pastikan Flask API dan Ngrok Anda menyala.",
+      );
     } finally {
       setLoading(false);
     }
@@ -447,7 +450,7 @@ export default function PrediksiPage() {
               </select>
             </div>
 
-            {/* Payment Method (SUDAH DIPERBAIKI TANDA PETIKNYA) */}
+            {/* Payment Method */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">
                 Payment Method
@@ -514,9 +517,9 @@ export default function PrediksiPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div
                 className={`p-6 rounded-2xl shadow-sm border-2 text-center ${
-                  result.risk === "HIGH"
+                  result.risk === "high"
                     ? "bg-red-50 border-red-400 text-red-800"
-                    : result.risk === "MEDIUM"
+                    : result.risk === "medium"
                       ? "bg-amber-50 border-amber-400 text-amber-800"
                       : "bg-green-50 border-green-400 text-green-800"
                 }`}
@@ -539,7 +542,9 @@ export default function PrediksiPage() {
                 }`}
               >
                 <p className="text-sm uppercase font-bold">Tingkat Risiko</p>
-                <h2 className="text-3xl font-bold mt-2">{result.risk} Risk</h2>
+                <h2 className="text-3xl font-bold mt-2 capitalize">
+                  {result.risk} Risk
+                </h2>
                 <p className="mt-3 text-sm">
                   {result.prediction === 1
                     ? "⚠️ Pelanggan diprediksi churn"

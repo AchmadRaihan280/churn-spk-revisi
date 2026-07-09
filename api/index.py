@@ -2,9 +2,26 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from recommendation import generate_recommendation
 
-import joblib
-import pandas as pd
-import numpy as np
+import os
+
+# ==================================================
+# LOAD MODEL
+# ==================================================
+
+model = None
+feature_columns = []
+
+if not os.environ.get('VERCEL'):
+    import joblib
+    import pandas as pd
+    import numpy as np
+    try:
+        model = joblib.load("best_model.pkl")
+        feature_columns = joblib.load("feature_columns.pkl")
+        print("✅ Model berhasil di-load")
+        print("Jumlah fitur :", len(feature_columns))
+    except Exception as e:
+        print("Gagal load model di lokal:", str(e))
 
 app = Flask(__name__)
 CORS(app)
@@ -44,6 +61,7 @@ def safe_float(val, default=0.0):
 # ==================================================
 
 def preprocess_input(mapped_data):
+    import pandas as pd
     encoded = {}
     
     # Helper untuk menyederhanakan pengecekan string (case-insensitive & strip)
@@ -107,6 +125,9 @@ def preprocess_input(mapped_data):
 
 @app.route("/api/predict", methods=["POST"])
 def predict():
+    if os.environ.get('VERCEL'):
+        return jsonify({"message": "AI diproses di lokal lewat ngrok, bukan di Vercel"}), 200
+        
     try:
         data = request.get_json()
         if not data:
@@ -212,6 +233,10 @@ def predict():
 
 @app.route("/api/predict-bulk", methods=["POST"])
 def predict_bulk():
+    if os.environ.get('VERCEL'):
+        return jsonify({"message": "AI diproses di lokal lewat ngrok, bukan di Vercel"}), 200
+        
+    import pandas as pd
     try:
         if "file" not in request.files:
             return jsonify({"error": "File tidak ditemukan"}), 400
@@ -338,8 +363,8 @@ def home():
         {
             "status": "success",
             "message": "Customer Churn API Running",
-            "model": "Paralel 24-Scenario Best Model Evaluator",
-            "total_feature": len(feature_columns),
+           "model": "Paralel 24-Scenario Best Model Evaluator",
+            "total_feature": len(feature_columns) if feature_columns else 30,
         }
     )
 
@@ -349,4 +374,4 @@ def home():
 # ==================================================
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000)  
